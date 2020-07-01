@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <title>Películas</title>
+    <script>
+      /* invoca a registraServiceWorker instalar la aplicación en el caché del
+       * navegador. No se espera a que termine el registro. */
+      registraServiceWorker();
+      /** Registra un service worker para instalar la aplicación en el
+       * caché del navegador. La palabra reservada async indica que no espera
+       * a que termine y libera el registro de activación que lo llamó. */
+      async function registraServiceWorker() {
+        if ("serviceWorker" in navigator) {
+          try {
+            /* Registra el service worker y espera que termine. El service
+             * worker debe estar en la carpeta public. La palabra await indica
+             * que espera a que termine y solo puede usarse en una función
+             * async. */
+            const registro = await navigator.serviceWorker.register("sw.js");
+            // Registro correcto y se muestra en la consola.
+            console.log("Service Worker registrado.");
+            console.log(registro);
+          } catch (e) {
+            // Hubo un error en el registro.
+            muestraError(e);
+          }
+        }
+      }
+      /** Procesa una excepción y muestra un mensaje de error.
+       * @param {Error} e descripción del error. */
+      function muestraError(e) {
+        console.log(e);
+        alert(e.message);
+      }
+    </script>
+
+    <!-- Ícono para la página web. Debe ponerse en la raíz de la página. -->
+    <link rel="icon" sizes="32x32" href="favicon.ico">
+
+    <!-- Color de la barra de navegación de Chrome en dispositivos móviles. -->
+    <meta name="theme-color" content="#ffcb2d">
+
+    <!-- Configuración de la PWA: Chrome y Edge. -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Configuración para Web Clip en Safari. -->
+    <meta name="apple-mobile-web-app-title" content="pwa-fadalu">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="apple-touch-icon" href="img/ms-icon-310x310.png">
+    <link rel="apple-touch-icon" sizes="256x256" href="img/icono-256.png">
+    <link rel="apple-touch-icon" sizes="1024x1024" href="img/icono-1024.png">
+    <link rel="apple-touch-icon" sizes="2048x2048" href="img//icono-2048.png">
+
+    <script type="module" src="cmp/mi-footer.js"></script>
+    <link rel="stylesheet" href="css/estilos.css">
+
+    <!-- Carga el núcleo de Firebase. Actualiza los números de versión cuando
+    sea necesario. Hemos quitado el atributo defer que aparecía originalmente.
+    -->
+    <script src="/__/firebase/7.14.6/firebase-app.js"></script>
+    <!-- Solo incluye las características de Firebase que necesites.s -->
+    <script src="/__/firebase/7.14.6/firebase-auth.js"></script>
+    <script src="/__/firebase/7.14.6/firebase-firestore.js"></script>
+    <script src="/__/firebase/7.14.6/firebase-storage.js"></script>
+    <!-- Carga la configuración de tu proyecto en el servidor de Firebase. -->
+    <script src="/__/firebase/init.js"></script>
+
+  <body>
+
+    <form action="javascript:guarda()">
+      <header>
+        <h1>Películas</h1>
+        <div class="ext">
+          <button type="button" onclick="extension.classList.toggle('muestra');">
+            <span class="material-icons">more_vert</span>
+          </button>
+          <ul id="extension">
+            <li>
+        <button id="agregar" type="button"
+         onclick="alta();" onclick="extension.classList.remove('muestra');">Agregar</button>
+            </li>
+            <li>
+        <button type="submit"
+        onclick="extension.classList.remove('muestra');">Guardar</button>
+            </li>
+            <li>
+        <button id="eliminar" type="button"
+          onclick="elimina();" onclick="extension.classList.remove('muestra');">Eliminar</button>
+            </li>
+        </ul>
+      </div>
+      </header>
+      <p><input id="titulo" type="text" placeholder="Titulo" required></p>
+      <p><input id="director" type="text" placeholder="Director" required></p>
+      
+      <ul id="lista1">
+        <li><progress max="100">Cargando…</progress></li>
+      </ul>
+      <mi-footer></mi-footer>
+    </form>
+    <script>
+      /** Id del objeto seleccionado en la lista. */
+      let id = "";
+      const firestore = firebase.firestore();
+      muestraLista();
+      alta();
+      function muestraLista() {
+        /* Pide todos los registros de la colección "PELICULAS" ordenados por
+         * el campo "titulo" de forma ascendente. */
+        firestore.collection("peliculas").orderBy("titulo").onSnapshot(
+          documentos => {
+            let inner = "";
+            documentos.forEach(doc =>
+              inner += /* html */
+              `<li>
+                <button type=button onclick="muestra('${cod(doc.id)}')">
+                  <strong>Título: </strong> ${cod(doc.data().titulo)}
+                  <strong>Director: </strong> ${cod(doc.data().director)}
+                </button>
+              </li>`);
+            lista1.innerHTML = inner;
+          },
+          e => {
+            procesaError(e);
+            muestraLista();
+          }
+        );
+      }
+      /** Prepara la forma para capturar un pasatiempo nuevo. */
+      function alta() {
+        agregar.disabled = true; // Deshabilita el botón "agregar".
+        eliminar.disabled = true; // Deshabilita el botón "eliminar".
+        id = ""; 
+        titulo.value = ""; 
+        director.value = "";
+      }
+      /** Prepara la forma para modificar el documento que corresponde al
+       * id seleccionado en el listado.
+       * @param {string} idSel id del documento seleccionado en el listado. */
+      async function muestra(idSel) {
+        try {
+          agregar.disabled = false; // Habilita el botón "agregar".
+          eliminar.disabled = false; // Habilita el botón "eliminar".
+          /* Recupera el documento con el id seleccionado en la colección
+           * "PASATIEMPO". */
+          let doc = await firestore.collection("peliculas").doc(idSel).get();
+          if (doc.exists) {
+            id = doc.id;
+            let data = doc.data();
+            titulo.value = data.titulo || "";
+            director.value = data.director|| "";
+          } else {
+            alert("La película selecionada no está registrada.");
+            alta();
+          }
+        } catch (e) {
+          procesaError(e);
+        }
+      }
+      async function guarda() {
+        try {
+          const modelo1 = {
+            titulo: titulo.value.trim(),
+            director: director.value.trim()
+          };
+          if (id) {
+            await firestore.collection("peliculas").doc(id).set(modelo1);
+          } else {
+            await firestore.collection("peliculas").add(modelo1);
+          }
+          
+          alta();
+        } catch (e) {
+          procesaError(e);
+        }
+      }
+      async function elimina() {
+        try {
+          await firestore.collection("peliculas").doc(id).delete();
+          alta();
+        } catch (e) {
+          procesaError(e);
+        }
+      }
+      /* invoca a registraServiceWorker instalar la aplicación en el caché del
+       * navegador. No se espera a que termine el registro. */
+       registraServiceWorker();
+      /** Registra un service worker para instalar la aplicación en el
+       * caché del navegador. La palabra reservada async indica que no espera
+       * a que termine y libera el registro de activación que lo llamó. */
+      async function registraServiceWorker() {
+        if ("serviceWorker" in navigator) {
+          try {
+            /* Registra el service worker y espera que termine. El service
+             * worker debe estar en la carpeta public. La palabra await indica
+             * que espera a que termine y solo puede usarse en una función
+             * async. */
+            const registro = await navigator.serviceWorker.register("sw.js");
+            // Registro correcto y se muestra en la consola.
+            console.log("Service Worker registrado.");
+            console.log(registro);
+          } catch (e) {
+            // Hubo un error en el registro.
+            muestraError(e);
+          }
+        }
+      }
+      /** Procesa una excepción y muestra un mensaje de error.
+       * @param {Error} e descripción del error. */
+      function muestraError(e) {
+        console.log(e);
+        alert(e.message);
+      }
+      function cod(valor) {
+        return (valor || "").toString()
+          .replace(/[<>"']/g,
+            /** @param {string} letra */
+            letra => {
+              switch (letra) {
+                case "<": return "&lt;";
+                case ">": return "&gt;";
+                case '"': return "&quot;";
+                case "'": return "&#039;";
+                default: return letra;
+              }
+            });
+      }
+    </script>
+  </body>
+</html>
